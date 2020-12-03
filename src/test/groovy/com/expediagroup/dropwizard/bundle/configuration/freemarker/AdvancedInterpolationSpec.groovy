@@ -3,64 +3,64 @@ package com.expediagroup.dropwizard.bundle.configuration.freemarker
 import org.apache.commons.io.IOUtils
 import spock.lang.Specification
 
-import static org.hamcrest.CoreMatchers.containsString
+import java.nio.charset.StandardCharsets
+
+import static org.assertj.core.api.Assertions.assertThat
 
 class AdvancedInterpolationSpec extends Specification {
 
-    def TestEnvironmentProvider environmentProvider = new TestEnvironmentProvider()
-    def TestSystemPropertiesProvider systemPropertiesProvider = new TestSystemPropertiesProvider()
+    TestCustomProvider environmentProvider = TestCustomProvider.forEnv()
+    TestCustomProvider systemPropertiesProvider = TestCustomProvider.forSys()
 
-    def TemplateConfigurationSourceProvider templateConfigurationSourceProvider =
+    TemplateConfigurationSourceProvider templateConfigurationSourceProvider =
             new TemplateConfigurationSourceProvider(new TestConfigSourceProvider(),
-                    environmentProvider,
-                    systemPropertiesProvider,
-                    new TemplateConfigBundleConfiguration())
+                    new TemplateConfigBundleConfiguration(systemPropertiesProvider, environmentProvider))
 
     def 'replacing an environment variable inline works'() {
         given:
         def config = '''database:
                           driverClass: org.postgresql.Driver
-                          user: ${DB_USER}
-                          password: ${DB_PASSWORD}
-                          url: jdbc:postgresql://${DB_HOST}:${DB_PORT}/my-app-db'''
+                          user: ${env.DB_USER}
+                          password: ${env.DB_PASSWORD}
+                          url: jdbc:postgresql://${env.DB_HOST}:${env.DB_PORT}/my-app-db'''
 
-        environmentProvider.put('DB_USER', 'user')
-        environmentProvider.put('DB_PASSWORD', 'password')
-        environmentProvider.put('DB_HOST', 'db-host')
-        environmentProvider.put('DB_PORT', '12345')
+        environmentProvider.putVariable('DB_USER', 'user')
+        environmentProvider.putVariable('DB_PASSWORD', 'password')
+        environmentProvider.putVariable('DB_HOST', 'db-host')
+        environmentProvider.putVariable('DB_PORT', '12345')
 
         when:
         InputStream parsedConfig = templateConfigurationSourceProvider.open(config)
-        String parsedConfigAsString = IOUtils.toString(parsedConfig)
+        String parsedConfigAsString = IOUtils.toString(parsedConfig, StandardCharsets.UTF_8)
 
         then:
-        parsedConfigAsString containsString('database:')
-        parsedConfigAsString containsString('driverClass: org.postgresql.Driver')
-        parsedConfigAsString containsString('user: user')
-        parsedConfigAsString containsString('password: password')
-        parsedConfigAsString containsString('url: jdbc:postgresql://db-host:12345/my-app-db')
+        assertThat(parsedConfigAsString).contains('database:')
+        assertThat(parsedConfigAsString).contains('driverClass: org.postgresql.Driver')
+        assertThat(parsedConfigAsString).contains('user: user')
+        assertThat(parsedConfigAsString).contains('password: password')
+        assertThat(parsedConfigAsString).contains('url: jdbc:postgresql://db-host:12345/my-app-db')
     }
 
     def 'inserting whole mappings works'() {
         given:
         def config = '''
                 server:
-                  ${SERVER_TYPE_LINE}
+                  ${env.SERVER_TYPE_LINE}
                   connector:
-                    ${SERVER_CONNECTOR_TYPE_LINE}
+                    ${env.SERVER_CONNECTOR_TYPE_LINE}
                     port: 8080
                 '''
 
-        environmentProvider.put('SERVER_TYPE_LINE', 'type: simple')
-        environmentProvider.put('SERVER_CONNECTOR_TYPE_LINE', 'type: http')
+        environmentProvider.putVariable('SERVER_TYPE_LINE', 'type: simple')
+        environmentProvider.putVariable('SERVER_CONNECTOR_TYPE_LINE', 'type: http')
 
         when:
         InputStream parsedConfig = templateConfigurationSourceProvider.open(config)
-        String parsedConfigAsString = IOUtils.toString(parsedConfig)
+        String parsedConfigAsString = IOUtils.toString(parsedConfig, StandardCharsets.UTF_8)
 
         then:
-        parsedConfigAsString containsString('type: simple')
-        parsedConfigAsString containsString('type: http')
+        assertThat(parsedConfigAsString).contains('type: simple')
+        assertThat(parsedConfigAsString).contains('type: http')
     }
 
     def 'environment variables have precedence over system properties'() {
@@ -69,19 +69,19 @@ class AdvancedInterpolationSpec extends Specification {
                           type: simple
                           connector:
                             type: http
-                            port: ${port}'''
+                            port: ${env.port}'''
 
-        environmentProvider.put('port', '8080')
-        systemPropertiesProvider.put('port', '8081')
+        environmentProvider.putVariable('port', '8080')
+        systemPropertiesProvider.putVariable('port', '8081')
 
         when:
         def parsedConfig = templateConfigurationSourceProvider.open(config)
-        def parsedConfigAsString = IOUtils.toString(parsedConfig)
+        def parsedConfigAsString = IOUtils.toString(parsedConfig, StandardCharsets.UTF_8)
 
         then:
-        parsedConfigAsString containsString('server:')
-        parsedConfigAsString containsString('type: http')
-        parsedConfigAsString containsString('port: 8080')
+        assertThat(parsedConfigAsString).contains('server:')
+        assertThat(parsedConfigAsString).contains('type: http')
+        assertThat(parsedConfigAsString).contains('port: 8080')
     }
 
 }

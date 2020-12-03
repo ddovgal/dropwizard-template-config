@@ -1,20 +1,20 @@
 package com.expediagroup.dropwizard.bundle.configuration.freemarker
 
+import freemarker.core.InvalidReferenceException
 import org.apache.commons.io.IOUtils
 import spock.lang.Specification
 
-import static org.hamcrest.CoreMatchers.containsString
-import static org.hamcrest.CoreMatchers.isA
+import java.nio.charset.StandardCharsets
+
+import static org.assertj.core.api.Assertions.assertThat
 
 class SystemPropertiesSpec extends Specification {
 
-    def TestSystemPropertiesProvider systemPropertiesProvider = new TestSystemPropertiesProvider()
+    def TestCustomProvider systemPropertiesProvider = TestCustomProvider.forSys()
 
     def TemplateConfigurationSourceProvider templateConfigurationSourceProvider =
             new TemplateConfigurationSourceProvider(new TestConfigSourceProvider(),
-                    new DefaultEnvironmentProvider(),
-                    systemPropertiesProvider,
-                    new TemplateConfigBundleConfiguration())
+                    new TemplateConfigBundleConfiguration(systemPropertiesProvider, Providers.fromEnvironmentProperties()))
 
     def 'replacing a system property works'() throws Exception {
         given:
@@ -22,18 +22,18 @@ class SystemPropertiesSpec extends Specification {
                           type: simple
                           connector:
                             type: http
-                            port: ${http_port}'''
+                            port: ${sys.http_port}'''
 
-        systemPropertiesProvider.put('http_port', '8080')
+        systemPropertiesProvider.putVariable('http_port', '8080')
 
         when:
         def parsedConfig = templateConfigurationSourceProvider.open(config)
-        def parsedConfigAsString = IOUtils.toString(parsedConfig)
+        def parsedConfigAsString = IOUtils.toString(parsedConfig, StandardCharsets.UTF_8)
 
         then:
-        parsedConfigAsString containsString('server:')
-        parsedConfigAsString containsString('type: http')
-        parsedConfigAsString containsString('port: 8080')
+        assertThat(parsedConfigAsString).contains('server:')
+        assertThat(parsedConfigAsString).contains('type: http')
+        assertThat(parsedConfigAsString).contains('port: 8080')
     }
 
     def 'using a missing system property honors default value'() throws Exception {
@@ -42,16 +42,16 @@ class SystemPropertiesSpec extends Specification {
                           type: simple
                           connector:
                             type: http
-                            port: ${http_port!8080}'''
+                            port: ${sys.http_port!8080}'''
 
         when:
         def parsedConfig = templateConfigurationSourceProvider.open(config)
-        def parsedConfigAsString = IOUtils.toString(parsedConfig)
+        def parsedConfigAsString = IOUtils.toString(parsedConfig, StandardCharsets.UTF_8)
 
         then:
-        parsedConfigAsString containsString('server:')
-        parsedConfigAsString containsString('type: http')
-        parsedConfigAsString containsString('port: 8080')
+        assertThat(parsedConfigAsString).contains('server:')
+        assertThat(parsedConfigAsString).contains('type: http')
+        assertThat(parsedConfigAsString).contains('port: 8080')
     }
 
     def 'using a missing system property without default value fails'() throws Exception {
@@ -60,15 +60,15 @@ class SystemPropertiesSpec extends Specification {
                           type: simple
                           connector:
                             type: http
-                            port: ${http_port}'''
+                            port: ${sys.http_port}'''
 
         when:
         templateConfigurationSourceProvider.open(config)
 
         then:
-        def exception = thrown(RuntimeException)
+        def exception = thrown(IllegalStateException)
         def exceptionsCause = exception.cause
-        exceptionsCause isA(freemarker.core.InvalidReferenceException)
+        assertThat(exceptionsCause).isInstanceOf(InvalidReferenceException)
     }
 
     def 'can use sys prefix'() throws Exception {
@@ -79,16 +79,16 @@ class SystemPropertiesSpec extends Specification {
                             type: http
                             port: ${sys.http_port}'''
 
-        systemPropertiesProvider.put('http_port', '8080')
+        systemPropertiesProvider.putVariable('http_port', '8080')
 
         when:
         def parsedConfig = templateConfigurationSourceProvider.open(config)
-        def parsedConfigAsString = IOUtils.toString(parsedConfig)
+        def parsedConfigAsString = IOUtils.toString(parsedConfig, StandardCharsets.UTF_8)
 
         then:
-        parsedConfigAsString containsString('server:')
-        parsedConfigAsString containsString('type: http')
-        parsedConfigAsString containsString('port: 8080')
+        assertThat(parsedConfigAsString).contains('server:')
+        assertThat(parsedConfigAsString).contains('type: http')
+        assertThat(parsedConfigAsString).contains('port: 8080')
     }
 
     def 'referencing a system property with a dot in its name must use bracket syntax'() throws Exception {
@@ -99,16 +99,16 @@ class SystemPropertiesSpec extends Specification {
                             type: http
                             port: ${sys['my_app.http.port']}'''
 
-        systemPropertiesProvider.put('my_app.http.port', '8080')
+        systemPropertiesProvider.putVariable('my_app.http.port', '8080')
 
         when:
         def parsedConfig = templateConfigurationSourceProvider.open(config)
-        def parsedConfigAsString = IOUtils.toString(parsedConfig)
+        def parsedConfigAsString = IOUtils.toString(parsedConfig, StandardCharsets.UTF_8)
 
         then:
-        parsedConfigAsString containsString('server:')
-        parsedConfigAsString containsString('type: http')
-        parsedConfigAsString containsString('port: 8080')
+        assertThat(parsedConfigAsString).contains('server:')
+        assertThat(parsedConfigAsString).contains('type: http')
+        assertThat(parsedConfigAsString).contains('port: 8080')
     }
 
     def 'can use backslash for names with dash'() throws Exception {
@@ -117,18 +117,18 @@ class SystemPropertiesSpec extends Specification {
                           type: simple
                           connector:
                             type: http
-                            port: ${http\\-port}'''
+                            port: ${sys.http\\-port}'''
 
-        systemPropertiesProvider.put('http-port', '8080')
+        systemPropertiesProvider.putVariable('http-port', '8080')
 
         when:
         def parsedConfig = templateConfigurationSourceProvider.open(config)
-        def parsedConfigAsString = IOUtils.toString(parsedConfig)
+        def parsedConfigAsString = IOUtils.toString(parsedConfig, StandardCharsets.UTF_8)
 
         then:
-        parsedConfigAsString containsString('server:')
-        parsedConfigAsString containsString('type: http')
-        parsedConfigAsString containsString('port: 8080')
+        assertThat(parsedConfigAsString).contains('server:')
+        assertThat(parsedConfigAsString).contains('type: http')
+        assertThat(parsedConfigAsString).contains('port: 8080')
     }
 
 }

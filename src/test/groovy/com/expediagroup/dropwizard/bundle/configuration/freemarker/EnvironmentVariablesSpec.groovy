@@ -1,20 +1,20 @@
 package com.expediagroup.dropwizard.bundle.configuration.freemarker
 
+import freemarker.core.InvalidReferenceException
 import org.apache.commons.io.IOUtils
 import spock.lang.Specification
 
-import static org.hamcrest.CoreMatchers.containsString
-import static org.hamcrest.CoreMatchers.isA
+import java.nio.charset.StandardCharsets
+
+import static org.assertj.core.api.Assertions.assertThat
 
 class EnvironmentVariablesSpec extends Specification {
 
-    def TestEnvironmentProvider environmentProvider = new TestEnvironmentProvider()
+    TestCustomProvider environmentProvider = TestCustomProvider.forEnv()
 
-    def TemplateConfigurationSourceProvider templateConfigurationSourceProvider =
+    TemplateConfigurationSourceProvider templateConfigurationSourceProvider =
             new TemplateConfigurationSourceProvider(new TestConfigSourceProvider(),
-                    environmentProvider,
-                    new DefaultSystemPropertiesProvider(),
-                    new TemplateConfigBundleConfiguration())
+                    new TemplateConfigBundleConfiguration(Providers.fromSystemProperties(), environmentProvider))
 
     def 'replacing an environment variable works'() throws Exception {
         given:
@@ -22,18 +22,18 @@ class EnvironmentVariablesSpec extends Specification {
                           type: simple
                           connector:
                             type: http
-                            port: ${PORT}'''
+                            port: ${env.PORT}'''
 
-        environmentProvider.put('PORT', '8080')
+        environmentProvider.putVariable('PORT', '8080')
 
         when:
         def parsedConfig = templateConfigurationSourceProvider.open(config)
-        def parsedConfigAsString = IOUtils.toString(parsedConfig)
+        def parsedConfigAsString = IOUtils.toString(parsedConfig, StandardCharsets.UTF_8)
 
         then:
-        parsedConfigAsString containsString('server:')
-        parsedConfigAsString containsString('type: http')
-        parsedConfigAsString containsString('port: 8080')
+        assertThat(parsedConfigAsString).contains('server:')
+        assertThat(parsedConfigAsString).contains('type: http')
+        assertThat(parsedConfigAsString).contains('port: 8080')
     }
 
     def 'using a missing environment variable honors default value'() throws Exception {
@@ -42,16 +42,16 @@ class EnvironmentVariablesSpec extends Specification {
                           type: simple
                           connector:
                             type: http
-                            port: ${PORT!8080}'''
+                            port: ${env.PORT!8080}'''
 
         when:
         InputStream parsedConfig = templateConfigurationSourceProvider.open(config)
-        String parsedConfigAsString = IOUtils.toString(parsedConfig)
+        String parsedConfigAsString = IOUtils.toString(parsedConfig, StandardCharsets.UTF_8)
 
         then:
-        parsedConfigAsString containsString('server:')
-        parsedConfigAsString containsString('type: http')
-        parsedConfigAsString containsString('port: 8080')
+        assertThat(parsedConfigAsString).contains('server:')
+        assertThat(parsedConfigAsString).contains('type: http')
+        assertThat(parsedConfigAsString).contains('port: 8080')
     }
 
     def 'using a missing environment variable without default value fails'() throws Exception {
@@ -60,15 +60,15 @@ class EnvironmentVariablesSpec extends Specification {
                           type: simple
                           connector:
                             type: http
-                            port: ${PORT}'''
+                            port: ${env.PORT}'''
 
         when:
         templateConfigurationSourceProvider.open(config)
 
         then:
-        def exception = thrown(RuntimeException)
+        def exception = thrown(IllegalStateException)
         def exceptionsCause = exception.cause
-        exceptionsCause isA(freemarker.core.InvalidReferenceException)
+        assertThat(exceptionsCause).isInstanceOf(InvalidReferenceException)
     }
 
     def 'can use env prefix'() throws Exception {
@@ -79,16 +79,16 @@ class EnvironmentVariablesSpec extends Specification {
                             type: http
                             port: ${env.PORT}'''
 
-        environmentProvider.put('PORT', '8080')
+        environmentProvider.putVariable('PORT', '8080')
 
         when:
         def parsedConfig = templateConfigurationSourceProvider.open(config)
-        def parsedConfigAsString = IOUtils.toString(parsedConfig)
+        def parsedConfigAsString = IOUtils.toString(parsedConfig, StandardCharsets.UTF_8)
 
         then:
-        parsedConfigAsString containsString('server:')
-        parsedConfigAsString containsString('type: http')
-        parsedConfigAsString containsString('port: 8080')
+        assertThat(parsedConfigAsString).contains('server:')
+        assertThat(parsedConfigAsString).contains('type: http')
+        assertThat(parsedConfigAsString).contains('port: 8080')
     }
 
 

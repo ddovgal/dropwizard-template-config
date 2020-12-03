@@ -7,24 +7,20 @@ import spock.lang.Specification
 class IncludeSpec extends Specification {
 
     @Shared
-    def TestEnvironmentProvider environmentProvider = new TestEnvironmentProvider()
+    def TestCustomProvider environmentProvider = TestCustomProvider.forEnv()
 
     @Shared
     def TemplateConfigurationSourceProvider resourceIncludeProvider = new TemplateConfigurationSourceProvider(
             new TestConfigSourceProvider(),
-            environmentProvider,
-            new DefaultSystemPropertiesProvider(),
-            new TemplateConfigBundleConfiguration()
+            new TemplateConfigBundleConfiguration(Providers.fromSystemProperties(), environmentProvider)
                     .resourceIncludePath('/config-snippets')
     )
 
     @Shared
     def TemplateConfigurationSourceProvider fileIncludeProvider = new TemplateConfigurationSourceProvider(
             new TestConfigSourceProvider(),
-            environmentProvider,
-            new DefaultSystemPropertiesProvider(),
-            new TemplateConfigBundleConfiguration()
-                    .fileIncludePath('src/test/resources/config-snippets/')
+            new TemplateConfigBundleConfiguration(Providers.fromSystemProperties(), environmentProvider)
+                    .fileIncludePath('src/test/resources/config-snippets/'),
     )
 
     def 'config snippets can be included from the classpath and filesystem'() {
@@ -44,7 +40,7 @@ class IncludeSpec extends Specification {
 
         expect:
         def parsedConfig = provider.open(config)
-        def parsedConfigAsString = IOUtils.toString(parsedConfig)
+        def parsedConfigAsString = IOUtils.toString(parsedConfig).replace("\r", "")
         parsedConfigAsString == '''
                 server:
                   type: simple
@@ -72,14 +68,14 @@ class IncludeSpec extends Specification {
                 <#include "database-with-templating.yaml">
                 '''.stripIndent()
 
-        environmentProvider.put('DB_USER', 'my-app')
-        environmentProvider.put('DB_PASSWORD', 'secret')
-        environmentProvider.put('DB_HOST', 'localhost')
-        environmentProvider.put('DB_PORT', '5432')
+        environmentProvider.putVariable('DB_USER', 'my-app')
+        environmentProvider.putVariable('DB_PASSWORD', 'secret')
+        environmentProvider.putVariable('DB_HOST', 'localhost')
+        environmentProvider.putVariable('DB_PORT', '5432')
 
         expect:
         def parsedConfig = provider.open(config)
-        def parsedConfigAsString = IOUtils.toString(parsedConfig)
+        def parsedConfigAsString = IOUtils.toString(parsedConfig).replace("\r", "")
         parsedConfigAsString == '''
                 database:
                   driverClass: org.postgresql.Driver
@@ -97,10 +93,7 @@ class IncludeSpec extends Specification {
         def relativeIncludePath = 'config-snippets'
         def TemplateConfigurationSourceProvider provider = new TemplateConfigurationSourceProvider(
                 new TestConfigSourceProvider(),
-                new DefaultEnvironmentProvider(),
-                new DefaultSystemPropertiesProvider(),
-                new TemplateConfigBundleConfiguration()
-                        .resourceIncludePath(relativeIncludePath)
+                new TemplateConfigBundleConfiguration().resourceIncludePath(relativeIncludePath)
         )
         def config = '''
                 <#include "database.yaml">
@@ -110,7 +103,7 @@ class IncludeSpec extends Specification {
         def parsedConfig = provider.open(config)
 
         then:
-        def parsedConfigAsString = IOUtils.toString(parsedConfig)
+        def parsedConfigAsString = IOUtils.toString(parsedConfig).replace("\r", "")
         parsedConfigAsString == '''
                 database:
                   driverClass: org.postgresql.Driver

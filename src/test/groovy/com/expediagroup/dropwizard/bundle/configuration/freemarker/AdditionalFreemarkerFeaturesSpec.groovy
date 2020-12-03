@@ -3,18 +3,17 @@ package com.expediagroup.dropwizard.bundle.configuration.freemarker
 import org.apache.commons.io.IOUtils
 import spock.lang.Specification
 
-import static org.hamcrest.CoreMatchers.containsString
-import static org.hamcrest.CoreMatchers.not
+import java.nio.charset.StandardCharsets
+
+import static org.assertj.core.api.Assertions.assertThat
 
 class AdditionalFreemarkerFeaturesSpec extends Specification {
 
-    def TestEnvironmentProvider environmentProvider = new TestEnvironmentProvider()
+    TestCustomProvider environmentProvider = TestCustomProvider.forEnv()
 
-    def TemplateConfigurationSourceProvider templateConfigurationSourceProvider =
+    TemplateConfigurationSourceProvider templateConfigurationSourceProvider =
             new TemplateConfigurationSourceProvider(new TestConfigSourceProvider(),
-                    environmentProvider,
-                    new DefaultSystemPropertiesProvider(),
-                    new TemplateConfigBundleConfiguration())
+                    new TemplateConfigBundleConfiguration(Providers.fromSystemProperties(), environmentProvider))
 
     def 'conditionally enable https - on'() {
         given:
@@ -22,30 +21,30 @@ class AdditionalFreemarkerFeaturesSpec extends Specification {
                 server:
                   applicationConnectors:
                     - type: http
-                      port: ${PORT!8080}
-                <#if ENABLE_SSL == 'true'>
+                      port: ${env.PORT!8080}
+                <#if env.ENABLE_SSL == 'true'>
                     - type: https
-                      port: ${SSL_PORT!8443}
-                      keyStorePath: ${SSL_KEYSTORE_PATH}
-                      keyStorePassword: ${SSL_KEYSTORE_PASS}
+                      port: ${env.SSL_PORT!8443}
+                      keyStorePath: ${env.SSL_KEYSTORE_PATH}
+                      keyStorePassword: ${env.SSL_KEYSTORE_PASS}
                 </#if>
                 '''
 
-        environmentProvider.put('ENABLE_SSL', 'true')
-        environmentProvider.put('SSL_KEYSTORE_PATH', 'example.keystore')
-        environmentProvider.put('SSL_KEYSTORE_PASS', 'secret')
+        environmentProvider.putVariable('ENABLE_SSL', 'true')
+        environmentProvider.putVariable('SSL_KEYSTORE_PATH', 'example.keystore')
+        environmentProvider.putVariable('SSL_KEYSTORE_PASS', 'secret')
 
         when:
         def parsedConfig = templateConfigurationSourceProvider.open(config)
-        def parsedConfigAsString = IOUtils.toString(parsedConfig)
+        def parsedConfigAsString = IOUtils.toString(parsedConfig, StandardCharsets.UTF_8)
 
         then:
-        parsedConfigAsString containsString('- type: http')
-        parsedConfigAsString containsString('port: 8080')
-        parsedConfigAsString containsString('- type: https')
-        parsedConfigAsString containsString('port: 8443')
-        parsedConfigAsString containsString('keyStorePath: example.keystore')
-        parsedConfigAsString containsString('keyStorePassword: secret')
+        assertThat(parsedConfigAsString).contains('- type: http')
+        assertThat(parsedConfigAsString).contains('port: 8080')
+        assertThat(parsedConfigAsString).contains('- type: https')
+        assertThat(parsedConfigAsString).contains('port: 8443')
+        assertThat(parsedConfigAsString).contains('keyStorePath: example.keystore')
+        assertThat(parsedConfigAsString).contains('keyStorePassword: secret')
     }
 
     def 'conditionally enable https - off'() {
@@ -54,24 +53,24 @@ class AdditionalFreemarkerFeaturesSpec extends Specification {
                 server:
                   applicationConnectors:
                     - type: http
-                      port: ${PORT!8080}
-                <#if ENABLE_SSL == 'true'>
+                      port: ${env.PORT!8080}
+                <#if env.ENABLE_SSL == 'true'>
                     - type: https
-                      port: ${SSL_PORT!8443}
-                      keyStorePath: ${SSL_KEYSTORE_PATH}
-                      keyStorePassword: ${SSL_KEYSTORE_PASS}
+                      port: ${env.SSL_PORT!8443}
+                      keyStorePath: ${env.SSL_KEYSTORE_PATH}
+                      keyStorePassword: ${env.SSL_KEYSTORE_PASS}
                 </#if>
                 '''
 
-        environmentProvider.put('ENABLE_SSL', 'false')
+        environmentProvider.putVariable('ENABLE_SSL', 'false')
 
         when:
         def parsedConfig = templateConfigurationSourceProvider.open(config)
-        def parsedConfigAsString = IOUtils.toString(parsedConfig)
+        def parsedConfigAsString = IOUtils.toString(parsedConfig, StandardCharsets.UTF_8)
 
         then:
-        parsedConfigAsString containsString('- type: http')
-        parsedConfigAsString containsString('port: 8080')
+        assertThat(parsedConfigAsString).contains('- type: http')
+        assertThat(parsedConfigAsString).contains('port: 8080')
     }
 
     def 'comments can be used'(){
@@ -91,19 +90,19 @@ class AdditionalFreemarkerFeaturesSpec extends Specification {
 
         when:
         def parsedConfig = templateConfigurationSourceProvider.open(config)
-        def parsedConfigAsString = IOUtils.toString(parsedConfig)
+        def parsedConfigAsString = IOUtils.toString(parsedConfig, StandardCharsets.UTF_8)
 
         then:
-        parsedConfigAsString not(containsString('Un-comment to enable HTTPS'))
-        parsedConfigAsString not(containsString('- type: https'))
-        parsedConfigAsString not(containsString('keyStorePassword:'))
+        assertThat(parsedConfigAsString).doesNotContain('Un-comment to enable HTTPS')
+        assertThat(parsedConfigAsString).doesNotContain('- type: https')
+        assertThat(parsedConfigAsString).doesNotContain('keyStorePassword:')
     }
 
     def 'simulating application profiles - production profile'() {
         given:
         def config = '''
                 logging:
-                <#if PROFILE == 'production'>
+                <#if env.PROFILE == 'production'>
                   level: WARN
                   loggers:
                     com.example.my_app: INFO
@@ -112,7 +111,7 @@ class AdditionalFreemarkerFeaturesSpec extends Specification {
                     - type: syslog
                       host: localhost
                       facility: local0
-                <#elseif PROFILE == 'development'>
+                <#elseif env.PROFILE == 'development'>
                   level: INFO
                   loggers:
                     com.example.my_app: DEBUG
@@ -122,26 +121,26 @@ class AdditionalFreemarkerFeaturesSpec extends Specification {
                 </#if>
                 '''
 
-        environmentProvider.put('PROFILE', 'production')
+        environmentProvider.putVariable('PROFILE', 'production')
 
         when:
         def parsedConfig = templateConfigurationSourceProvider.open(config)
-        def parsedConfigAsString = IOUtils.toString(parsedConfig)
+        def parsedConfigAsString = IOUtils.toString(parsedConfig, StandardCharsets.UTF_8)
 
         then:
-        parsedConfigAsString containsString('level: WARN')
-        parsedConfigAsString containsString('com.example.my_app: INFO')
-        parsedConfigAsString containsString('org.hibernate.SQL: OFF')
-        parsedConfigAsString containsString('- type: syslog')
-        parsedConfigAsString containsString('host: localhost')
-        parsedConfigAsString containsString('facility: local0')
+        assertThat(parsedConfigAsString).contains('level: WARN')
+        assertThat(parsedConfigAsString).contains('com.example.my_app: INFO')
+        assertThat(parsedConfigAsString).contains('org.hibernate.SQL: OFF')
+        assertThat(parsedConfigAsString).contains('- type: syslog')
+        assertThat(parsedConfigAsString).contains('host: localhost')
+        assertThat(parsedConfigAsString).contains('facility: local0')
     }
 
     def 'simulating application profiles - development profile'() {
         given:
         def config = '''
                 logging:
-                <#if PROFILE == 'production'>
+                <#if env.PROFILE == 'production'>
                   level: WARN
                   loggers:
                     com.example.my_app: INFO
@@ -150,7 +149,7 @@ class AdditionalFreemarkerFeaturesSpec extends Specification {
                     - type: syslog
                       host: localhost
                       facility: local0
-                <#elseif PROFILE == 'development'>
+                <#elseif env.PROFILE == 'development'>
                   level: INFO
                   loggers:
                     com.example.my_app: DEBUG
@@ -160,17 +159,17 @@ class AdditionalFreemarkerFeaturesSpec extends Specification {
                 </#if>
                 '''
 
-        environmentProvider.put('PROFILE', 'development')
+        environmentProvider.putVariable('PROFILE', 'development')
 
         when:
         def parsedConfig = templateConfigurationSourceProvider.open(config)
-        def parsedConfigAsString = IOUtils.toString(parsedConfig)
+        def parsedConfigAsString = IOUtils.toString(parsedConfig, StandardCharsets.UTF_8)
 
         then:
-        parsedConfigAsString containsString('level: INFO')
-        parsedConfigAsString containsString('com.example.my_app: DEBUG')
-        parsedConfigAsString containsString('org.hibernate.SQL: DEBUG')
-        parsedConfigAsString containsString('- type: console')
+        assertThat(parsedConfigAsString).contains('level: INFO')
+        assertThat(parsedConfigAsString).contains('com.example.my_app: DEBUG')
+        assertThat(parsedConfigAsString).contains('org.hibernate.SQL: DEBUG')
+        assertThat(parsedConfigAsString).contains('- type: console')
     }
 
 }

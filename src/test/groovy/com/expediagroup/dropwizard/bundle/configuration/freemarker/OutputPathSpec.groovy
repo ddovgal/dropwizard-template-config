@@ -1,24 +1,23 @@
 package com.expediagroup.dropwizard.bundle.configuration.freemarker
 
-import com.google.common.base.*
 import com.google.common.io.Files
 import org.apache.commons.io.IOUtils
 import spock.lang.Specification
 
-import static org.hamcrest.CoreMatchers.containsString
-import static org.hamcrest.CoreMatchers.equalTo
+import java.nio.charset.StandardCharsets
+
+import static org.assertj.core.api.Assertions.assertThat
 
 class OutputPathSpec extends Specification {
-    def TestEnvironmentProvider environmentProvider = new TestEnvironmentProvider()
+    TestCustomProvider environmentProvider = TestCustomProvider.forEnv()
 
     def outputPath = System.getProperty('java.io.tmpdir') + '/outputPathSpec.yml'
 
-    def TemplateConfigurationSourceProvider provider = new TemplateConfigurationSourceProvider(
+    TemplateConfigurationSourceProvider provider = new TemplateConfigurationSourceProvider(
             new TestConfigSourceProvider(),
-            environmentProvider,
-            new DefaultSystemPropertiesProvider(),
-            new TemplateConfigBundleConfiguration()
-                    .outputPath(outputPath)
+            new TemplateConfigBundleConfiguration(Providers.fromSystemProperties(), environmentProvider)
+                    .outputPath(outputPath),
+
     )
 
     def 'rendered output is written to configured outputPath'() {
@@ -32,12 +31,12 @@ class OutputPathSpec extends Specification {
 
         when:
         def parsedConfig = provider.open(config)
-        def parsedConfigAsString = IOUtils.toString(parsedConfig)
-        def configOnDiskAsString = Files.toString(new File(outputPath), Charsets.UTF_8)
+        def parsedConfigAsString = IOUtils.toString(parsedConfig, StandardCharsets.UTF_8)
+        def configOnDiskAsString = Files.asCharSource(new File(outputPath), StandardCharsets.UTF_8).read()
 
         then:
-        parsedConfigAsString equalTo(configOnDiskAsString)
-        configOnDiskAsString containsString('port: 8080')
+        assertThat(parsedConfigAsString).isEqualTo(configOnDiskAsString)
+        assertThat(configOnDiskAsString).contains('port: 8080')
 
         cleanup:
         new File(outputPath).delete()

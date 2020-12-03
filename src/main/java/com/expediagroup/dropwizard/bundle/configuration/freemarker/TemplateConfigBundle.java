@@ -1,17 +1,18 @@
 package com.expediagroup.dropwizard.bundle.configuration.freemarker;
 
-import io.dropwizard.Bundle;
+import io.dropwizard.Configuration;
+import io.dropwizard.ConfiguredBundle;
 import io.dropwizard.setup.Bootstrap;
 import io.dropwizard.setup.Environment;
 
 /**
- * Dropwizard {@link io.dropwizard.Bundle} that wraps the currently configured
+ * Dropwizard {@link ConfiguredBundle} that wraps the currently configured
  * {@link io.dropwizard.configuration.ConfigurationSourceProvider} with a
  * {@link TemplateConfigurationSourceProvider}
  * that allows you to write your {@code config.yaml} as a
  * <a href="http://freemarker.org/">Freemarker</a> template.
  */
-public class TemplateConfigBundle implements Bundle {
+public class TemplateConfigBundle<T extends Configuration> implements ConfiguredBundle<T> {
 
     private final TemplateConfigBundleConfiguration configuration;
 
@@ -35,14 +36,12 @@ public class TemplateConfigBundle implements Bundle {
     public void initialize(final Bootstrap<?> bootstrap) {
         bootstrap.setConfigurationSourceProvider(new TemplateConfigurationSourceProvider(
                 bootstrap.getConfigurationSourceProvider(),
-                new DefaultEnvironmentProvider(),
-                new DefaultSystemPropertiesProvider(),
                 configuration
         ));
     }
 
     @Override
-    public void run(final Environment environment) {
+    public void run(T configuration, Environment environment) {
         // intentionally left empty
     }
 

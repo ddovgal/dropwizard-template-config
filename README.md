@@ -6,6 +6,11 @@ In fact, this project is the successor to the fabulous [dropwizard-environment-c
 
 **This project is fork of [tkrille/dropwizard-template-config](https://github.com/tkrille/dropwizard-template-config)**
 
+## Dropwizard Version Support Matrix
+dropwizard-template-config | Dropwizard v1.3.x  | Dropwizard v2.0.x
+-------------------------- | ------------------ | ------------------
+v2.0.x                     | :white_check_mark: | :white_check_mark:
+
 ## Setup
 
 First add the dependency to your POM:
@@ -18,16 +23,13 @@ First add the dependency to your POM:
 </dependency>
 ```
 
-Your project is assumed to separately pull in `dropwizard-core` version 0.7.1 or newer.
-Compatibility has been tested through Dropwizard 1.0.0.
-
 To enable, simply add the `TemplateConfigBundle` to the `Bootstrap` object in your `initialize` method:
 
 ```java
 @Override
 public void initialize(final Bootstrap<Configuration> bootstrap) {
     ...
-    bootstrap.addBundle(new TemplateConfigBundle());
+    bootstrap.addBundle(new TemplateConfigBundle<>());
     ...
 }
 ```
@@ -38,7 +40,7 @@ You can configure the bundle by passing an instance of `TemplateConfigBundleConf
 @Override
 public void initialize(final Bootstrap<Configuration> bootstrap) {
     ...
-    bootstrap.addBundle(new TemplateConfigBundle(
+    bootstrap.addBundle(new TemplateConfigBundle<>(
             new TemplateConfigBundleConfiguration().charset(Charsets.US_ASCII)
     ));
     ...
@@ -52,7 +54,7 @@ to the constructor:
 @Override
 public void initialize(final Bootstrap<Configuration> bootstrap) {
     ...
-    bootstrap.addBundle(new TemplateConfigBundle(
+    bootstrap.addBundle(new TemplateConfigBundle<>(
         new TemplateConfigBundleConfiguration()
             .addCustomProvider(myCustomProvider1)
             .addCustomProvider(myCustomProvider2)
@@ -70,7 +72,8 @@ So you must set any custom `ConfigurationSourceProvider` before adding this `Bun
 ## Quickstart
 
 Environment variables and system properties can be specified in `config.yaml` by using the following
-Freemarker magic:
+Freemarker magic. Note that environment variables are accessed through the `env` namespace, and
+system properties through the `sys` namespace.
 
 ```yaml
 server:
@@ -78,13 +81,13 @@ server:
   connector:
     type: http
     # replacing environment variables
-    port: ${PORT}
+    port: ${env.PORT}
 logging:
   # with default values too
-  level: ${LOG_LEVEL!'WARN'}
+  level: ${env.LOG_LEVEL!'WARN'}
   appenders:
     # system properties also work
-    - type: ${log_appender!'console'}
+    - type: ${sys.log_appender!'console'}
 ```
 
 See [Freemarker's Template Author's Guide](http://freemarker.org/docs/dgui.html) for more information
@@ -102,7 +105,7 @@ server:
   type: simple
   connector:
     type: http
-    port: ${PORT}
+    port: ${env.PORT}
 ```
 
 You can specify a default value in case the environment variable is missing.
@@ -113,7 +116,7 @@ server:
   type: simple
   connector:
     type: http
-    port: ${PORT!8080}
+    port: ${env.PORT!8080}
 ```
 
 Default values are separated from the variable name by a `!` and follow more or less the well-known
@@ -127,27 +130,19 @@ server:
   type: simple
   connector:
     type: http
-    port: ${http_port}
+    port: ${sys.http_port}
 ```
 
-There are some limitations to the variables and properties you can access through these top-level variables.
-For one, environment variables and system properties with the same name will collide (environment variables
-will mask system properties in this case).
-For another, names containing [characters such as `.` and `-` that have special meaning to Freemarker]
-(http://freemarker.org/docs/dgui_template_exp.html#dgui_template_exp_var_toplevel) won't be available.
-To alleviate these problems, this bundle also provides `Map`s for the environment (`env`) and system
-properties (`sys`) at the top level:
+Variable names containing [characters such as `.` and `-` that have special meaning to Freemarker](https://freemarker.apache.org/docs/dgui_template_exp.html#dgui_template_exp_var)
+can be accessed in the following way:
 
 ```yaml
-# Use `sys` to access a system property masked by an environment variable
-port: ${sys.http_port}
-
 # Use bracket notation to access a system property with a `.` in its name
 port: ${sys['my_app.http.port']}
 
 # Names with a dash (`-`) can be accessed via brackets or backslash
 port: ${sys['http-port']}
-port: ${http\-port}
+port: ${sys.http\-port}
 ```
 
 You can output variables inline in values.
@@ -156,9 +151,9 @@ This is helpful to specify the database connection:
 ```yaml
 database:
   driverClass: org.postgresql.Driver
-  user: ${DB_USER}
-  password: ${DB_PASSWORD}
-  url: jdbc:postgresql://${DB_HOST!'localhost'}:${DB_PORT}/my-app-db
+  user: ${env.DB_USER}
+  password: ${env.DB_PASSWORD}
+  url: jdbc:postgresql://${env.DB_HOST!'localhost'}:${env.DB_PORT}/my-app-db
 ```
 
 In fact, you can output anything anywhere, because Freemarker doesn't know anything about YAML:
@@ -171,9 +166,9 @@ In fact, you can output anything anywhere, because Freemarker doesn't know anyth
 # SERVER_CONNECTOR_TYPE_LINE='type: http'
 #
 server:
-  ${SERVER_TYPE_LINE}
+  ${env.SERVER_TYPE_LINE}
   connector:
-    ${SERVER_CONNECTOR_TYPE_LINE}
+    ${env.SERVER_CONNECTOR_TYPE_LINE}
     port: 8080
 ```
 
@@ -195,12 +190,12 @@ Of course, you can use any other Freemarker features beyond simple variable inte
 server:
   applicationConnectors:
     - type: http
-      port: ${PORT!8080}
-<#if ENABLE_SSL == 'true'>
+      port: ${env.PORT!8080}
+<#if env.ENABLE_SSL == 'true'>
     - type: https
-      port: ${SSL_PORT!8443}
-      keyStorePath: ${SSL_KEYSTORE_PATH}
-      keyStorePassword: ${SSL_KEYSTORE_PASS}
+      port: ${env.SSL_PORT!8443}
+      keyStorePath: ${env.SSL_KEYSTORE_PATH}
+      keyStorePassword: ${env.SSL_KEYSTORE_PASS}
 </#if>
 ```
 
@@ -211,12 +206,12 @@ Comments are available too:
 server:
   applicationConnectors:
     - type: http
-      port: ${PORT!8080}
+      port: ${env.PORT!8080}
 <#-- Un-comment to enable HTTPS
     - type: https
-      port: ${SSL_PORT!8443}
-      keyStorePath: ${SSL_KEYSTORE_PATH}
-      keyStorePassword: ${SSL_KEYSTORE_PASS}
+      port: ${env.SSL_PORT!8443}
+      keyStorePath: ${env.SSL_KEYSTORE_PATH}
+      keyStorePassword: ${env.SSL_KEYSTORE_PASS}
 -->
 ```
 
@@ -227,7 +222,7 @@ an environment variable like this:
 
 ```yaml
 logging:
-<#if PROFILE == 'production'>
+<#if env.PROFILE == 'production'>
   level: WARN
   loggers:
     com.example.my_app: INFO
@@ -236,7 +231,7 @@ logging:
     - type: syslog
       host: localhost
       facility: local0
-<#elseif PROFILE == 'development'>
+<#elseif env.PROFILE == 'development'>
   level: INFO
   loggers:
     com.example.my_app: DEBUG
@@ -255,7 +250,7 @@ based either on a resource in the classpath:
 @Override
 public void initialize(final Bootstrap<Configuration> bootstrap) {
     ...
-    bootstrap.addBundle(new TemplateConfigBundle(
+    bootstrap.addBundle(new TemplateConfigBundle<>(
             new TemplateConfigBundleConfiguration().resourceIncludePath("/config")
     ));
     ...
@@ -268,7 +263,7 @@ or on the local filesystem:
 @Override
 public void initialize(final Bootstrap<Configuration> bootstrap) {
     ...
-    bootstrap.addBundle(new TemplateConfigBundle(
+    bootstrap.addBundle(new TemplateConfigBundle<>(
             new TemplateConfigBundleConfiguration().fileIncludePath("./config")
     ));
     ...
@@ -338,7 +333,7 @@ config before passing it on to Dropwizard:
 @Override
 public void initialize(final Bootstrap<Configuration> bootstrap) {
     ...
-    bootstrap.addBundle(new TemplateConfigBundle(
+    bootstrap.addBundle(new TemplateConfigBundle<>(
             new TemplateConfigBundleConfiguration().outputPath("/tmp/config.yml")
     ));
     ...

@@ -11,7 +11,7 @@ public class TestCustomProvider implements TemplateConfigVariablesProvider {
         this.namespace = namespace;
     }
 
-    public void put(String name, String value) {
+    public void putVariable(String name, String value) {
         data.put(name, value);
     }
 
@@ -23,5 +23,13 @@ public class TestCustomProvider implements TemplateConfigVariablesProvider {
     @Override
     public Map<String, String> getVariables() {
         return this.data;
+    }
+
+    public static TestCustomProvider forSys() {
+        return new TestCustomProvider("sys");
+    }
+
+    public static TestCustomProvider forEnv() {
+        return new TestCustomProvider("env");
     }
 }
