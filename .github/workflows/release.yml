@@ -23,7 +23,7 @@ jobs:
           gpg-passphrase: GPG_PASSPHRASE # env variable for GPG private key passphrase
 
       - name: Build library
-        run: ./mvnw clean build
+        run: ./mvnw clean verify
 
       - name: Publish library
         run: |
