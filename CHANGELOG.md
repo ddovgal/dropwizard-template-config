@@ -3,6 +3,14 @@
 ## This CHANGELOG file is no longer updated. Instead, GitHub Releases are used.
 
 
+## 2.1.0 (2021-02-18)
+
+### Features
+
+- Add ability to include files that are placed in the same directory with input config file.
+  If `/foo/bar/baz.ftl` will be used as DropWizard input config file, that file will be able to include `*.ftl` files that are also placed
+  in `/foo/bar`. So for example, for `<#include "included.ftl">` line inside the `baz.ftl`, `/foo/bar/included.ftl` will be used.
+
 ## 1.5.0 (2017-02-19)
 
 ### Features

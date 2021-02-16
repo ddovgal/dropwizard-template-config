@@ -11,8 +11,14 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Objects;
 
+import freemarker.cache.ClassTemplateLoader;
+import freemarker.cache.FileTemplateLoader;
+import freemarker.cache.MultiTemplateLoader;
+import freemarker.cache.TemplateLoader;
 import freemarker.template.Configuration;
 import freemarker.template.Template;
 import freemarker.template.TemplateException;
@@ -46,30 +52,49 @@ public class TemplateConfigurationSourceProvider implements ConfigurationSourceP
     }
 
     private InputStream createConfigurationSourceStream(String path) throws IOException, TemplateException {
-        Configuration freemarkerConfiguration = createFreemarkerConfiguration();
+        Configuration freemarkerConfiguration = createFreemarkerConfiguration(path);
         Template configTemplate = createFreemarkerTemplate(path, freemarkerConfiguration);
         byte[] processedConfigTemplate = processTemplate(Objects.requireNonNull(configuration.dataModelFactory().get()), configTemplate);
         writeConfigFile(processedConfigTemplate);
         return new ByteArrayInputStream(processedConfigTemplate);
     }
 
-    private Configuration createFreemarkerConfiguration() {
+    private Configuration createFreemarkerConfiguration(String path) {
         Configuration freemarkerConfiguration = new Configuration(Configuration.VERSION_2_3_22);
         freemarkerConfiguration.setTemplateExceptionHandler(TemplateExceptionHandler.RETHROW_HANDLER);
         freemarkerConfiguration.setNumberFormat("computer");
         freemarkerConfiguration.setDefaultEncoding(configuration.charset().name());
-        configuration.resourceIncludePath().ifPresent(p -> freemarkerConfiguration.setClassForTemplateLoading(
-            TemplateConfigurationSourceProvider.class, !p.startsWith("/") ? ("/" + p) : p));
 
-        if (!configuration.resourceIncludePath().isPresent()) {
-            configuration.fileIncludePath().map(File::new).ifPresent(f -> {
-                try {
-                    freemarkerConfiguration.setDirectoryForTemplateLoading(f);
-                } catch (IOException e) {
-                    throw new IllegalStateException("Could not set directory for template loading.", e);
-                }
-            });
+        List<TemplateLoader> loaders = new ArrayList<>(2);
+
+        File configFile = new File(path);
+        if (configFile.exists() && configFile.isFile()) {
+            File configDirectory = configFile.getParentFile();
+            try {
+                loaders.add(new FileTemplateLoader(configDirectory));
+            } catch (IOException e) {
+                // Probably should never happened as configFile exist and we get directory file for sure
+                // But there possibly could be PrivilegedActionException that will be casted to IO
+                // Anyway, if an input configuration file directory couldn't be used, nothing to do with that
+                // And if we can't access already here, it definitely will fail later
+                throw new IllegalStateException("Could not use an input configuration file directory for template loading.", e);
+            }
         }
+
+        if (configuration.resourceIncludePath().isPresent()) {
+            String resourcePath = configuration.resourceIncludePath().get();
+            String basePackagePath = !resourcePath.startsWith("/") ? ("/" + resourcePath) : resourcePath;
+            loaders.add(new ClassTemplateLoader(TemplateConfigurationSourceProvider.class, basePackagePath));
+        } else if (configuration.fileIncludePath().isPresent()) {
+            String directoryPath = configuration.fileIncludePath().get();
+            try {
+                loaders.add(new FileTemplateLoader(new File(directoryPath)));
+            } catch (IOException e) {
+                throw new IllegalStateException("Could not set directory for template loading.", e);
+            }
+        }
+
+        freemarkerConfiguration.setTemplateLoader(new MultiTemplateLoader(loaders.toArray(new TemplateLoader[0])));
         return freemarkerConfiguration;
     }
 
